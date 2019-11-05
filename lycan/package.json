@@ -1,6 +1,6 @@
 {
   "name": "lycan-db",
-  "version": "1.0.5",
+  "version": "1.0.51",
   "description": "lycan-db is an object oriented JSON database that does not require an additional database program running to function.",
   "main": "index.js",
   "keywords": ["database", "json"],
