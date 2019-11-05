@@ -5,8 +5,14 @@ module.exports = {
     session: (key, value) => {
 
     },
+    crypt: false,
     locale: false,
-    local: (location, models) => {
+    local: (location, models, options) => {
+        if (options) {
+            if (options.crypt) {
+                this.crypt = options.crypt;
+            }
+        }
         this.locale = location;
         // if (!fs.existsSync(this.locale + '/nodemon.json')) {
         //     let nodemon = {ignore: ["./"]};
@@ -88,7 +94,7 @@ module.exports = {
                 reject(errors);
             } else {
                 object.id = curator[groupName].tally;
-                object.Group = groupName;
+                object.group = groupName;
                 curator[groupName].tally++;
                 group[object.id] = object;
                 fs.writeFileSync(dir + '/library/' + groupName + ".json", JSON.stringify(group, null, 4), 'utf8', function (err) {
@@ -112,7 +118,7 @@ module.exports = {
             if (fs.existsSync(dir + "/library/" + group + ".json")) {
                 resolve(JSON.parse(fs.readFileSync(dir + "/library/" + group + ".json")));
             } else {
-                reject({ message: "Group " + group + " does not exist", fail: true });
+                reject({ message: "group " + group + " does not exist", fail: true });
             }
         })
     },
@@ -126,10 +132,10 @@ module.exports = {
             } else {
                 throw "Invalid relationship";
             }
-            if (object1.Group != rel.object1) {
+            if (object1.group != rel.object1) {
                 errors.object1Type = "object1 is of incorrect type for relationship of " + relationship;
             }
-            if (object2.Group != rel.object2) {
+            if (object2.group != rel.object2) {
                 errors.object2Type = "object2 is of incorrect type for relationship of " + relationship;
             }
             if (Object.keys(errors).length > 0) {
@@ -165,11 +171,11 @@ module.exports = {
         const dir = this.locale;
         return new Promise(function (resolve, reject) {
             let group;
-            if (fs.existsSync(dir + "/library/" + object.Group + '.json')) {
-                group = JSON.parse(fs.readFileSync(dir + "/library/" + object.Group + '.json'));
+            if (fs.existsSync(dir + "/library/" + object.group + '.json')) {
+                group = JSON.parse(fs.readFileSync(dir + "/library/" + object.group + '.json'));
                 if (group[object.id]) {
                     delete group[object.id];
-                    fs.writeFileSync(dir + '/library/' + object.Group + ".json", JSON.stringify(group, null, 4), 'utf8', function (err) {
+                    fs.writeFileSync(dir + '/library/' + object.group + ".json", JSON.stringify(group, null, 4), 'utf8', function (err) {
                         if (err) {
                             reject(err);
                         } else {
@@ -180,7 +186,7 @@ module.exports = {
                     reject(['Object does not exist within specified group']);
                 }
             } else {
-                reject(['Cannot Delete Group does not exist']);
+                reject(['Cannot Delete group does not exist']);
             }
         })
     },
@@ -202,12 +208,12 @@ module.exports = {
                 reject(errors);
             }
             let group;
-            if (fs.existsSync(dir + "/library/" + object.Group + '.json')) {
-                group = JSON.parse(fs.readFileSync(dir + "/library/" + object.Group + '.json'));
+            if (fs.existsSync(dir + "/library/" + object.group + '.json')) {
+                group = JSON.parse(fs.readFileSync(dir + "/library/" + object.group + '.json'));
                 if (group[object.id]) {
                     group[object.id] = object;
 
-                    fs.writeFileSync(dir + '/library/' + object.Group + ".json", JSON.stringify(group, null, 4), 'utf8', function (err) {
+                    fs.writeFileSync(dir + '/library/' + object.group + ".json", JSON.stringify(group, null, 4), 'utf8', function (err) {
                         if (err) {
                             reject(err);
                         } else {
@@ -218,7 +224,7 @@ module.exports = {
                     reject(['Object does not exist within specified group']);
                 }
             } else {
-                reject(['Group does not exist']);
+                reject(['group does not exist']);
             }
         })
     },
@@ -233,12 +239,23 @@ module.exports = {
                     reject("Cannot find object by id requested");
                 }
             } else {
-                reject(["Cannot get by id Group does not exist"]);
+                reject(["Cannot get by id group does not exist"]);
             }
         })
     },
     Reveal: async (crypted, string) => {
+        let crypto = false;
+        if (this.crypt) {
+            crypto = this.crypt;
+        }
         return new Promise(function (resolve, reject) {
+            if (crypto) {
+                crypto.reveal(crypted, string)
+                    .then(data => {
+                        resolve(data);
+                    })
+                    .catch(err => reject(err));
+            }
             jana.revealB(crypted, string)
                 .then(data => {
                     if (data == crypted) {
@@ -264,7 +281,6 @@ module.exports = {
             curator = fetchCurator(dir);
             const model = curator[groupName];
             if (model[parameter]) {
-                console.log("GROUP: ", groupName)
                 const group = JSON.parse(fs.readFileSync(dir + '/library/' + groupName + '.json'))
                 for (object in group) {
                     let current = group[object];
@@ -417,6 +433,10 @@ function fetchCurator(loc) {
 }
 
 function runValidations(model, object, dir) {
+    let crypto = false;
+    if (this.crypt) {
+        crypto = this.crypt;
+    }
     return new Promise(async function (resolve, reject) {
         let errors = {};
         for (key in object) {
@@ -507,12 +527,20 @@ function runValidations(model, object, dir) {
                     }
                 }
                 if (model[parameter].crypt) {
-                    await jana.crypt(object[parameter])
-                        .then(data => {
-                            object[parameter] = data;
-                        })
-                        .catch(err => errors[parameter + 'Crypt'] = err)
-                }
+                    if (crypto) {
+                        await crypto.hide(object[parameter])
+                            .then(data => {
+                                object[parameter] = data;
+                            })
+                            .catch(err => errors[parameter + 'Crypt'] = err)
+                    } else {
+                        await jana.crypt(object[parameter])
+                            .then(data => {
+                                object[parameter] = data;
+                            })
+                            .catch(err => errors[parameter + 'Crypt'] = err)
+                    }
+                } 
             }
         }
         if (Object.keys(errors).length > 0) {
@@ -534,10 +562,14 @@ const jana = {
         for (let i = crypt.length - 10; i < crypt.length; i++) {
             salt += crypt[i];
         }
-        let rand = Math.floor(Math.random() * 2);
         string = string + salt;
         let i = 0;
-        let knife = string.length;
+        let knife;
+        for (let k = 0; k < bounty.length; k++) {
+            if (salt[5] == bounty[k]) {
+                knife = k;
+            }
+        }
         let jumble = '';
         let block = ''
         for (char in string) {
@@ -591,7 +623,12 @@ const jana = {
         }
         string = salt + string;
         let i = 0;
-        let knife = string.length;
+        let knife;
+        for (let k = 0; k < bounty.length; k++) {
+            if (salt[5] == bounty[k]) {
+                knife = k;
+            }
+        }
         let jumble = '';
         let block = ''
         for (char in string) {
@@ -652,12 +689,17 @@ const jana = {
         if (rand > 1) {
             string = string + salt;
         } else {
-            string = salt + string
+            string = salt + string;
         }
         let i = 0;
-        let knife = string.length;
+        let knife;
+        for (let k = 0; k < bounty.length; k++) {
+            if (salt[5] == bounty[k]) {
+                knife = k;
+            }
+        }
         let jumble = '';
-        let block = ''
+        let block = '';
         for (char in string) {
             doorway[i] = string[char];
             key[string[char]] = i;
