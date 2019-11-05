@@ -1,0 +1,12 @@
+{
+  "name": "lycan-db",
+  "version": "1.0.5",
+  "description": "lycan-db is an object oriented JSON database that does not require an additional database program running to function.",
+  "main": "index.js",
+  "keywords": ["database", "json"],
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Joshua Bracks",
+  "license": "ISC"
+}
