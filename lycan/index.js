@@ -14,21 +14,11 @@ module.exports = {
             }
         }
         this.locale = location;
-        // if (!fs.existsSync(this.locale + '/nodemon.json')) {
-        //     let nodemon = {ignore: ["./"]};
-        //     fs.writeFileSync(this.locale + '/nodemon.json', JSON.stringify(nodemon, null, 4), 'utf8', function (err) {
-        //         if (err) {
-        //             reject(err);
-        //         }
-        //     });
-        // }
         return new Promise(function (resolve, reject) {
             if (fs.existsSync(location + '/curator.json')) {
                 curator = JSON.parse(fs.readFileSync(location + "/curator.json"));
             } else {
                 curator = {
-                    version: '0',
-                    relationships: {},
                 }
             }
             if (models) {
@@ -50,10 +40,10 @@ module.exports = {
             }
             fs.writeFile(location + '/curator.json', JSON.stringify(curator, null, 4), 'utf8', function (err) {
                 if (err) {
-                    reject(err);
+                    return reject(err);
                 }
             })
-            resolve("success");
+            return resolve("success");
         })
     },
     Add: async (groupName, object) => {
@@ -79,6 +69,7 @@ module.exports = {
             model.tally = 0;
         }
         object.group = groupName;
+        object.id = curator[groupName].tally;
         await runValidations(model, object, this.locale)
             .then(obj => {
                 object = obj;
@@ -91,24 +82,23 @@ module.exports = {
         let dir = this.locale;
         return new Promise(function (resolve, reject) {
             if (Object.keys(errors).length > 0) {
-                reject(errors);
+                return reject(errors);
             } else {
-                object.id = curator[groupName].tally;
                 object.group = groupName;
                 curator[groupName].tally++;
                 group[object.id] = object;
                 fs.writeFileSync(dir + '/library/' + groupName + ".json", JSON.stringify(group, null, 4), 'utf8', function (err) {
                     if (err) {
-                        reject(err);
+                        return reject(err);
                     }
                 });
                 fs.writeFile(dir + '/curator.json', JSON.stringify(curator, null, 4), 'utf8', function (err) {
                     if (err) {
-                        reject(err);
+                        return reject(err);
                     }
                 });
             }
-            resolve(object);
+            return resolve(object);
         })
     },
     GetGroup: (group) => {
@@ -116,54 +106,9 @@ module.exports = {
         return new Promise(function (resolve, reject) {
             curator = fetchCurator(dir);
             if (fs.existsSync(dir + "/library/" + group + ".json")) {
-                resolve(JSON.parse(fs.readFileSync(dir + "/library/" + group + ".json")));
+                return resolve(JSON.parse(fs.readFileSync(dir + "/library/" + group + ".json")));
             } else {
-                reject({ message: "group " + group + " does not exist", fail: true });
-            }
-        })
-    },
-    Relationship: (relationship, object1, object2) => {
-        const dir = this.locale;
-        return new Promise(function (resolve, reject) {
-            let rel;
-            let errors = {};
-            if (curator.relationships[relationship]) {
-                rel = curator.relationships[relationship];
-            } else {
-                throw "Invalid relationship";
-            }
-            if (object1.group != rel.object1) {
-                errors.object1Type = "object1 is of incorrect type for relationship of " + relationship;
-            }
-            if (object2.group != rel.object2) {
-                errors.object2Type = "object2 is of incorrect type for relationship of " + relationship;
-            }
-            if (Object.keys(errors).length > 0) {
-                reject(errors);
-            }
-            if (rel.type == "oneToOne") {
-                object1[relationship] = object2;
-                object2[relationship] = object1;
-                let object1Group = JSON.parse(fs.readFileSync(dir + "/library/" + object1.group + '.json'));
-                object1Group[object1.id] = object1;
-                fs.writeFileSync(dir + '/library/' + object1.group + ".json", JSON.stringify(object1Group, null, 4), 'utf8', function (err) {
-                    if (err) {
-                        reject(err);
-                    }
-                });
-                let object2Group = JSON.parse(fs.readFileSync(dir + "/library/" + object2.group + '.json'));
-                object2Group[object2.id] = object2;
-                fs.writeFileSync(dir + '/library/' + object2.group + ".json", JSON.stringify(object2Group, null, 4), 'utf8', function (err) {
-                    if (err) {
-                        reject(err);
-                    }
-                });
-                fs.writeFile(dir + '/curator.json', JSON.stringify(curator, null, 4), 'utf8', function (err) {
-                    if (err) {
-                        reject(err);
-                    }
-                });
-                resolve([object1, object2]);
+                return reject({ message: "group " + group + " does not exist", fail: true });
             }
         })
     },
@@ -177,16 +122,16 @@ module.exports = {
                     delete group[object.id];
                     fs.writeFileSync(dir + '/library/' + object.group + ".json", JSON.stringify(group, null, 4), 'utf8', function (err) {
                         if (err) {
-                            reject(err);
+                            return reject(err);
                         } else {
-                            resolve('success');
+                            return resolve('success');
                         }
                     });
                 } else {
-                    reject(['Object does not exist within specified group']);
+                    return reject(['Object does not exist within specified group']);
                 }
             } else {
-                reject(['Cannot Delete group does not exist']);
+                return reject(['Cannot Delete group does not exist']);
             }
         })
     },
@@ -194,6 +139,16 @@ module.exports = {
         let errors = {};
         const dir = this.locale;
         const model = curator[object.group];
+        let actual = await updateHelper(object.group, object.id)
+            .then(data => { 
+                return data;
+            })
+            .catch(err => { console.log(err) })
+        for (key in actual) {
+            if (!object[key]) {
+                object[key] = actual[key];
+            }
+        }
         await runValidations(model, object, this.locale)
             .then(obj => {
                 object = obj;
@@ -205,41 +160,42 @@ module.exports = {
             });
         return new Promise(function (resolve, reject) {
             if (Object.keys(errors).length > 0) {
-                reject(errors);
+                return reject(errors);
             }
             let group;
             if (fs.existsSync(dir + "/library/" + object.group + '.json')) {
                 group = JSON.parse(fs.readFileSync(dir + "/library/" + object.group + '.json'));
+                object.id = parseInt(object.id);
                 if (group[object.id]) {
                     group[object.id] = object;
-
                     fs.writeFileSync(dir + '/library/' + object.group + ".json", JSON.stringify(group, null, 4), 'utf8', function (err) {
                         if (err) {
-                            reject(err);
+                            return reject(err);
                         } else {
-                            resolve('success');
+                            return resolve('success');
                         }
                     });
                 } else {
-                    reject(['Object does not exist within specified group']);
+                    return reject(['Object does not exist within specified group']);
                 }
             } else {
-                reject(['group does not exist']);
+                return reject(['group does not exist']);
             }
         })
     },
-    GetById: async (group, id) => {
+    GetById: async (group, id, factor) => {
         const dir = this.locale;
         return new Promise(function (resolve, reject) {
             if (fs.existsSync(dir + "/library/" + group + '.json')) {
                 group = JSON.parse(fs.readFileSync(dir + "/library/" + group + '.json'));
+                grue = group[id];
                 if (group[id]) {
-                    resolve(group[id]);
+                    return resolve(hestia.Joining(grue, factor, dir));
                 } else {
-                    reject("Cannot find object by id requested");
+                    return reject("Cannot find object by id requested");
                 }
             } else {
-                reject(["Cannot get by id group does not exist"]);
+                return reject(["Cannot get by id group does not exist"]);
             }
         })
     },
@@ -252,20 +208,20 @@ module.exports = {
             if (crypto) {
                 crypto.reveal(crypted, string)
                     .then(data => {
-                        resolve(data);
+                        return resolve(data);
                     })
                     .catch(err => reject(err));
             }
             jana.revealB(crypted, string)
                 .then(data => {
                     if (data == crypted) {
-                        resolve(true)
+                        return resolve(true)
                     } else {
                         jana.revealF(crypted, string)
                             .then(data => {
                                 if (data == crypted) {
-                                    resolve(true);
-                                } else { resolve(false) }
+                                    return resolve(true);
+                                } else { return resolve(false) }
                             })
                             .catch(err => reject(err))
                     }
@@ -273,7 +229,7 @@ module.exports = {
                 .catch(err => reject(err))
         })
     },
-    GetByKey: (groupName, parameter, value, first) => {
+    GetByKey: (groupName, parameter, value, first, factor) => {
         const dir = this.locale;
         return new Promise(function (resolve, reject) {
             let array = [];
@@ -287,11 +243,14 @@ module.exports = {
                     if (current[parameter] == value) {
                         array.push(current);
                         if (first) {
-                            resolve(current);
+                            return resolve(hestia.Joining(current, factor, dir));
                         }
                     }
                 }
-                resolve(array);
+                for (let i = 0; i < array.length; i++) {
+                    array[i] = hestia.Joining(array[i], factor, dir);
+                }
+                return resolve(array);
             }
         })
     },
@@ -306,11 +265,11 @@ module.exports = {
                     sessions = JSON.parse(fs.readFileSync(dir + '/sessions.json'));
                 }
                 if (sessions[id]) {
-                    resolve(sessions[id])
+                    return resolve(sessions[id])
                 } else {
                     sessions[id] = {};
                 }
-                resolve(sessions[id]);
+                return resolve(sessions[id]);
             })
         },
         write: (id, body) => {
@@ -330,102 +289,13 @@ module.exports = {
                 }
                 fs.writeFileSync(dir + '/sessions.json', JSON.stringify(sessions, null, 4), 'utf8', function (err) {
                     if (err) {
-                        reject(err);
+                        return reject(err);
                     }
                 });
-                resolve(sessions[id]);
+                return resolve(sessions[id]);
             })
         }
     }
-}
-
-function Model(object) {
-    const Master = {
-        total: Number,
-        parameter: {
-            type: String,
-            typeError: String,
-            required: Boolean,
-            requiredError: String,
-            min: Number,
-            minError: String,
-            max: Number,
-            maxError: String,
-            unique: Boolean,
-            uniqueError: String
-        },
-    }
-    const relationship = {
-        name: String,
-        type: String,
-        group: String,
-    }
-}
-
-function verifyRelationship(rel, model) {
-    const types = {
-        oneToOne: true,
-        manyToMany: true,
-        manyToOne: true,
-        oneToMany: true
-    }
-    let errors = {};
-    if (!rel.name) {
-        errors.relName = "Relationship name is required.";
-    }
-    if (!rel.group) {
-        errors.relGroup = "Relationship group is required.";
-    }
-    if (!rel.type) {
-        errors.relType = "Relationship type is required.";
-    }
-    if (!types[rel.type]) {
-        errors.relNoType("Relationship of " + rel.type + " is not valid.  Viable types are oneToOne, oneToMany, manyToOne or manyToMany");
-    }
-    if (curator.relationships[rel.name]) {
-        errors.alreadyExist = 'Relationship with name ' + rel.name + ' already exists.';
-    }
-    if (Object.keys(errors).length > 0) {
-        throw errors;
-    }
-    if (rel.type == 'oneToOne') {
-        if (!curator.relationships[rel.name]) {
-            curator.relationships[rel.name] = {
-                name: rel.name,
-                type: "oneToOne",
-                group1: model.name,
-                group2: rel.group
-            }
-            return "SUCCESS: One to One relationship " + model.name + " to " + rel.group + " is ready for use as " + rel.name + ".";
-        }
-    }
-    if (rel.type == 'oneToMany') {
-        if (!curator.relationships[rel.name]) {
-            curator.relationships[rel.name] = {
-                name: rel.name,
-                type: "oneToMany",
-                group1: model.name,
-                group2: rel.group
-            }
-            return "SUCCESS: Many to One relationship " + model.name + " to " + rel.group + " is ready for use as " + rel.name + ".";
-        }
-    }
-    if (rel.type == 'manyToMany') {
-        if (!curator.relationships[rel.name]) {
-            curator.relationships[rel.name] = {
-                name: rel.name,
-                type: "oneToMany",
-                group1: model.name,
-                group2: rel.group
-            }
-            return "SUCCESS: Many to One relationship " + model.name + " to " + rel.group + " is ready for use as " + rel.name + ".";
-        }
-    }
-    fs.writeFile(this.locale + '/curator.json', JSON.stringify(curator, null, 4), 'utf8', function (err) {
-        if (err) {
-            throw err;
-        }
-    })
 }
 
 function fetchCurator(loc) {
@@ -440,14 +310,14 @@ function runValidations(model, object, dir) {
     return new Promise(async function (resolve, reject) {
         let errors = {};
         for (key in object) {
-            if (!model[key] && key != 'group') {
+            if (!model[key] && key != 'group' && key != 'id') {
                 errors['parameter'] = key + ' is not a valid parameter.';
             }
         }
         for (parameter in model) {
+            let relate = false;
             if (model[parameter].required) {
                 if (!object[parameter] || object[parameter] == undefined || object[parameter] == false) {
-
                     if (model[parameter].requiredError) {
                         errors[parameter + 'Required'] = model[parameter].requiredError;
                     } else {
@@ -467,7 +337,16 @@ function runValidations(model, object, dir) {
                             })
                     }
                     else if (model[parameter].type != typeof (object[parameter])) {
-                        if (model[parameter].typeError) {
+                        if (model[parameter].type == 'ManyToMany' || model[parameter].type == 'OneToMany' || model[parameter].type == 'ManyToOne' || model[parameter].type == 'OneToOne') {
+                            await hestia.Validate(object, parameter, dir, model[parameter].type)
+                                .then(data => {})
+                                .catch(console.log)
+                            relate = true;
+                            if (model[parameter].group != object[parameter].group) {
+                                errors[parameter + 'Type'] = 'Invalid relationship error';
+                            }
+                        }
+                        else if (model[parameter].typeError) {
                             errors[parameter + 'Type'] = model[parameter].typeError;
                         } else {
                             errors[parameter + 'Type'] = 'Parameter ' + parameter + ' must be of type ' + model[parameter].type + '.';
@@ -515,13 +394,18 @@ function runValidations(model, object, dir) {
                     }
                 }
                 if (model[parameter].unique) {
-                    let group = JSON.parse(fs.readFileSync(dir + "/library/" + object.group + '.json'));
+                    let group;
+                    if (fs.existsSync(dir + "/library/" + object.group + '.json')) {
+                        group = JSON.parse(fs.readFileSync(dir + "/library/" + object.group + '.json'));
+                    } else {
+                        group = {};
+                    }
                     for (key in group) {
-                        if (group[key][parameter] == object[parameter]) {
+                        if (group[key][parameter] == object[parameter] && group[key].id != object.id) {
                             if (model[parameter].uniqueError) {
                                 errors[parameter + 'Unique'] = model[parameter].uniqueError;
                             } else {
-                                errors[parameter + 'Unique'] = 'Parameter' + parameter + 'must be unique.';
+                                errors[parameter + 'Unique'] = ' Parameter ' + parameter + ' must be unique.';
                             }
                         }
                     }
@@ -540,20 +424,31 @@ function runValidations(model, object, dir) {
                             })
                             .catch(err => errors[parameter + 'Crypt'] = err)
                     }
-                } 
+                }
+            }
+            if (relate) {
+                delete object[parameter];
             }
         }
         if (Object.keys(errors).length > 0) {
-            reject(errors)
+            return reject(errors)
         } else {
-            resolve(object);
+            return resolve(object);
         }
+    })
+}
+
+function updateHelper(group, id) {
+    return new Promise(function (resolve, reject) {
+        module.exports.GetById(group, id)
+            .then(data => { return resolve(data) })
+            .catch(err => { return reject(err) })
     })
 }
 const jana = {
     revealF: (crypt, string) => new Promise(function (resolve, reject) {
         if (typeof (string) != 'string') {
-            reject('Input must be a string');
+            return reject('Input must be a string');
         }
         const bounty = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ012346789`~!@#$%^&*,._+-=';
         const doorway = {};
@@ -608,11 +503,11 @@ const jana = {
             }
         }
         jumble += salt;
-        resolve(jumble);
+        return resolve(jumble);
     }),
     revealB: (crypt, string) => new Promise(function (resolve, reject) {
         if (typeof (string) != 'string') {
-            reject('Input must be a string');
+            return reject('Input must be a string');
         }
         const bounty = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ012346789`~!@#$%^&*,._+-=';
         const doorway = {};
@@ -672,11 +567,11 @@ const jana = {
 
         }
         jumble += salt;
-        resolve(jumble);
+        return resolve(jumble);
     }),
     crypt: (string) => new Promise(function (resolve, reject) {
         if (typeof (string) != 'string') {
-            reject('Input must be a string');
+            return reject('Input must be a string');
         }
         const bounty = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ012346789`~!@#$%^&*,._+-=';
         const doorway = {};
@@ -724,24 +619,19 @@ const jana = {
                 if (l > 64) {
                     l = 0;
                 }
-
             }
             jumble += bounty[l];
-
             k++;
             if (k > block.length - 1) {
                 k = 0;
             }
-
             knife += block.charCodeAt(k);
-
             while (knife > 64) {
                 knife = Math.floor(knife / string.length);
             }
-
         }
         jumble += salt;
-        resolve(jumble);
+        return resolve(jumble);
     }),
     verifyEmail: (string) => new Promise(function (resolve, reject) {
         let pre = false;
@@ -788,9 +678,317 @@ const jana = {
             i++
         }
         if (pre && at && between && dot && end && post) {
-            resolve(string);
+            return resolve(string);
         } else {
-            reject('Invalid Email');
+            return reject('Invalid Email');
         }
     })
+}
+const hestia = {
+    MakeOneToOne: async function (rel, dir) {
+        let relationships;
+        if (fs.existsSync(dir + "/relationships.json")) {
+            relationships = JSON.parse(fs.readFileSync(location + "/relationships.json"));
+        } else {
+            relationships = {};
+        }
+        return new Promise(function (resolve, reject) {
+            if (!relationships[rel.name]) {
+                relationships[rel.name] = {
+                    type: 'OneToOne',
+                    obj1: rel.obj1.group,
+                    obj2: rel.obj2.group
+                }
+            }
+            relationships[rel.name][rel.obj1.id] = rel.obj2.id;
+            relationships[rel.name][rel.obj2.id] = rel.obj1.id;
+            fs.writeFile(location + '/relationships.json', JSON.stringify(relationships, null, 4), 'utf8', function (err) {
+                if (err) {
+                    return reject(err);
+                } else {
+                    return resolve('success');
+                }
+            })
+        })
+    },
+    MakeManyToOne: async function (rel, dir) {
+        let relationships;
+        if (fs.existsSync(dir + "/relationships.json")) {
+            relationships = JSON.parse(fs.readFileSync(dir + "/relationships.json"));
+        } else {
+            relationships = {};
+        }
+        return new Promise(function (resolve, reject) {
+            if (!relationships[rel.name]) {
+                relationships[rel.name] = {
+                    type: 'ManyToOne',
+                    obj1: rel.obj1.group,
+                    obj2: rel.obj2.group
+                }
+            }
+            relationships[rel.name][rel.obj1.id] = rel.obj2.id;
+            fs.writeFile(dir + '/relationships.json', JSON.stringify(relationships, null, 4), 'utf8', function (err) {
+                if (err) {
+                    return reject(err);
+                } else {
+                    return resolve('success');
+                }
+            })
+        })
+    },
+    MakeOneToMany: async function (rel, dir) {
+        let relationships;
+        if (fs.existsSync(dir + "/relationships.json")) {
+            relationships = JSON.parse(fs.readFileSync(dir + "/relationships.json"));
+        } else {
+            relationships = {};
+        }
+        return new Promise(function (resolve, reject) {
+            if (!relationships[rel.name]) {
+                relationships[rel.name] = {
+                    type: 'OneToMany',
+                    obj1: rel.obj1.group,
+                    obj2: rel.obj2.group
+                }
+            }
+            if (!relationships[rel.name][rel.obj1.id]) {
+                relationships[rel.name][rel.obj1.id] = {};
+            }
+            relationships[rel.name][rel.obj1.id][rel.obj2.id] = rel.obj2.id;
+            fs.writeFile(dir + '/relationships.json', JSON.stringify(relationships, null, 4), 'utf8', function (err) {
+                if (err) {
+                    return reject(err);
+                } else {
+                    return resolve('success');
+                }
+            })
+        })
+    },
+    MakeManyToMany: async function (rel, dir) {
+        let relationships;
+        if (fs.existsSync(dir + "/relationships.json")) {
+            relationships = JSON.parse(fs.readFileSync(location + "/relationships.json"));
+        } else {
+            relationships = {};
+        }
+        return new Promise(function (resolve, reject) {
+            if (!relationships[rel.name]) {
+                relationships[rel.name] = {
+                    type: 'ManyToMany',
+                    obj1: rel.obj1.group,
+                    obj2: rel.obj2.group
+                }
+            }
+            if (!relationships[rel.name][rel.obj1.id]) {
+                relationships[rel.name][rel.obj1.id] = {};
+            }
+            if (!relationships[rel.name][rel.obj2.id]) {
+                relationships[rel.name][rel.obj2.id] = {};
+            }
+            relationships[rel.name][rel.obj1.id][rel.obj2.id] = rel.obj2.id;
+            relationships[rel.name][rel.obj2.id][rel.obj1.id] = rel.obj1.id;
+            fs.writeFile(location + '/relationships.json', JSON.stringify(relationships, null, 4), 'utf8', function (err) {
+                if (err) {
+                    return reject(err);
+                } else {
+                    return resolve('success');
+                }
+            })
+        })
+    },
+    Delete: async function (rel, dir) {
+        let relationships;
+        if (fs.existsSync(dir + "/relationships.json")) {
+            relationships = JSON.parse(fs.readFileSync(location + "/relationships.json"));
+        } else {
+            relationships = false;
+        }
+        return new Promise(function (resolve, reject) {
+            if (!relationships) {
+                return reject("Cannot find relationship");
+            }
+            if (relationships[rel.name]) {
+                if (relationships[rel.name].type == "OneToOne") {
+                    if (rel.type != "OneToOne") {
+                        return reject("Relationship type does not match.  Must be 'OneToOne'")
+                    } else {
+                        delete relationships[rel.name][obj1.id];
+                        delete relationships[rel.name][obj2.id];
+                    }
+                }
+                if (relationships[rel.name].type == "OneToMany") {
+                    if (rel.type != "OneToMany") {
+                        return reject("Relationship type does not match. Must be 'OneToMany'");
+                    } else {
+                        delete relationships[rel.name][obj1.id][obj2.id];
+                    }
+                }
+                if (relationships[rel.name].type == "ManyToMany") {
+                    if (rel.type != "ManyToMany") {
+                        return reject("Relationships type does not match.  Must be 'ManyToMany'");
+                    } else {
+                        delete relationships[rel.name][obj1.id][obj2.id];
+                        delete relationships[rel.name][obj1.id][obj2.id];
+                    }
+                }
+            }
+            fs.writeFile(location + '/relationships.json', JSON.stringify(relationships, null, 4), 'utf8', function (err) {
+                if (err) {
+                    return reject(err);
+                } else {
+                    return resolve('success');
+                }
+            });
+        })
+    },
+    Get: async function (rel, dir) {
+        let relationships;
+        if (fs.existsSync(dir + "/relationships.json")) {
+            relationships = JSON.parse(fs.readFileSync(location + "/relationships.json"));
+        } else {
+            relationships = false;
+        }
+        return new Promise(function (resolve, reject) {
+            if (!relationships) {
+                return reject('cannot find relationship');
+            }
+            return resolve(relationships[rel.name]);
+        });
+    },
+    Joining: async function (obj, factor, dir) {
+        let relationships;
+        if (fs.existsSync(dir + "/relationships.json")) {
+            relationships = (JSON.parse(fs.readFileSync(dir + "/relationships.json")));
+        } else {
+            relationships = false;
+        }
+        if (!relationships) {
+            return obj;
+        }
+        for (key in relationships) {
+            let current = relationships[key];
+            if (current.type == "OneToMany" && current.obj1 == obj.group && (current[obj.id] != undefined)) {
+                let group = JSON.parse(fs.readFileSync(dir + "/library/" + current.obj2 + ".json"));
+                for (i in current[obj.id]) {
+                    let tempObj = group[current[obj.id][i]]
+                    if (factor > 0) {
+                        tempObj = await this.Joining(tempObj, factor - 1, dir)
+                    }
+                    if (!obj[key]) {
+                        obj[key] = {};
+                    }
+                    obj[key][tempObj.id] = tempObj;
+                }
+            }
+            if ((current.type == "ManyToOne") && (current.obj1 == obj.group) && (current[obj.id] != undefined)) {
+                let group = JSON.parse(fs.readFileSync(dir + "/library/" + current.obj2 + ".json"));
+                let tempObj = group[current[obj.id]]
+                if (factor > 0) {
+                    tempObj = await this.Joining(tempObj, factor - 1, dir)
+                        .then(data => { return data })
+                        .catch(err => console.log(err));
+                }
+                if (!obj[key]) {
+                    obj[key] = {};
+                }
+                obj[key] = tempObj;
+            }
+            if (current.type == "OneToOne" && current.obj1 == obj.group && current[obj.id]) {
+                let group = JSON.parse(fs.readFileSync(dir + "/library/" + current.obj2 + ".json"));
+                let tempObj = group[current[obj.id]]
+                if (factor > 0) {
+                    tempObj = await this.Joining(tempObj, factor - 1, dir)
+                        .then(data => { return data })
+                        .catch(err => console.log(err));
+                }
+                if (!obj[key]) {
+                    obj[key] = {};
+                }
+                obj[key][tempObj.id] = tempObj;
+            }
+            if (current.type == "ManyToMany" && current.obj1 == obj.group && current[obj.id]) {
+                let group = JSON.parse(fs.readFileSync(dir + "/library/" + current.obj2 + ".json"));
+                for (i in current[obj.id]) {
+                    let tempObj = group[current[obj.id][i]]
+                    if (factor > 0) {
+                        tempObj = await this.Joining(tempObj, factor - 1, dir)
+                    }
+                    if (!obj[key]) {
+                        obj[key] = {};
+                    }
+                    obj[key][tempObj.id] = tempObj;
+                }
+            }
+        }
+        return obj;
+    },
+    Validate: async function (object, parameter, dir, type) {
+        if (type == "OneToOne") {
+            let rel = {
+                name: parameter,
+                obj1: object,
+                obj2: object[parameter]
+            }
+            this.MakeOneToOne(rel, dir)
+                .then(data => { return data })
+                .catch(err => { return err });
+        }
+        if (type == "OneToMany") {
+            let errors = [];
+            let result = [];
+            for (key in object[parameter]) {
+                let rel = {
+                    name: parameter + '_of',
+                    obj1: object,
+                    obj2: object[parameter][key],
+                    secret: "OneToMany"
+                }
+                await this.MakeOneToMany(rel, dir)
+                    .then(data => { result.push(data) })
+                    .catch(err => { errors.push(err) });
+                let rel2 = {
+                    name: parameter,
+                    obj2: object[parameter],
+                    obj2: object
+                }
+                await this.MakeManyToOne(rel2, dir)
+                    .then(data => { result.push(data) })
+                    .catch(err => { errors.push(err) })
+                return { data: result, errors: errors }
+            }
+        }
+        if (type == "ManyToOne") {
+            let result = [];
+            let errors = [];
+            const rel = {
+                name: parameter + '_of',
+                obj1: object[parameter],
+                obj2: object,
+            }
+            const rel2 = {
+                name: parameter,
+                obj1: object,
+                obj2: object[parameter]
+            }
+            await this.MakeOneToMany(rel, dir)
+                .then(data => {
+                    result.push(data)
+                    this.MakeManyToOne(rel2, dir)
+                        .then(data => { result.push(data) })
+                        .catch(err => { errors.push(err) })
+                })
+                .catch(err => { errors.push(err) });
+            return { data: result, errors: errors }
+        }
+        if (type == "ManyToMany") {
+            let rel = {
+                name: parameter,
+                obj1: object,
+                obj2: object[parameter]
+            }
+            this.MakeManyToMany(rel, dir)
+                .then(data => { return data })
+                .catch(err => { return err });
+        }
+    }
 }

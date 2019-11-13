@@ -1,12 +1,16 @@
-#**lycan-db**
+**lycan-db**
 
-##Lycan is an object oriented JSON database.
+Lycan is an object oriented JSON database.
 
 ```
 //Inside your controller file
 const lycan = require('lycan-db');
 lycan.local('../db');
 ```
+
+**LATEST PATCH**
+Relationship handling added with untested functionalities. "ManyToMany" and "OneToMany" are now valid parameter types that will be handled by the "relationships.json" file within your database folder.  "OneToOne" and "ManyToMany" are untested.  Use at your own peril.
+
 When you startup your server, lycan will create a database folder with the following contents:
 **curator.json**
 /library
@@ -17,7 +21,7 @@ When you startup your server, lycan will create a database folder with the follo
 
 **PARAMETER VALIDATIONS**: Within the parameter object, the user may store variables that serve as validators for the specific parameter when it is being passed.  Accepted validation variables are as follows:
 
-**type**: Verifies if the parameter passed matches the type set within the variable. If this variable is set and a value is passed that does not match typeof() the entire object will be rejected with an error.  SPECIAL CASE: if the type is set to "email" lycan will verify if it is a valid email string.
+**type**: Verifies if the parameter passed matches the type set within the variable. If this variable is set and a value is passed that does not match typeof() the entire object will be rejected with an error.  SPECIAL CASE: if the type is set to "email" lycan will verify if it is a valid email string.  **Relationships:** type: "ManyToMany" and type: "OneToMany" will create a relationship. (See "Relationships below").
 
 **min**: REQUIRES TYPE TO BE SET TO STRING OR NUMBER - If type is set to "string" min will verify that the length of the string is not less than the min variable given or return an error.  If type is set to "number" min will verify that the value of the number is no less than the variable given or return an error.
 
@@ -105,6 +109,20 @@ Takes in an object and returns a Promise.  If the object is found within the Lyc
 
 lycan.Reveal(crypted, string)
 Compares a "crypt": parameter with a string and returns a Promise.  If the string is a match, will return true otherwise, it will return false.
+
+**RELATIONSHIPS**
+Currently Unfinished
+The model validation "type" accepts "ManyToMany" and "OneToMany" and requires an additional "group" validation within the same parameter in order to function correctly.  (Future support will include "OneToOne" and "ManyToMany")
+
+curator.json
+```
+"user": {
+    "message": {
+        type: "OneToMany",
+        group: "message"
+    }
+}
+```
 
 **SESSION STORAGE**
 
