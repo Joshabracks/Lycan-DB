@@ -9,7 +9,7 @@ lycan.local('../db');
 ```
 
 **LATEST PATCH**
-Relationship handling added with untested functionalities. "ManyToMany" and "OneToMany" are now valid parameter types that will be handled by the "relationships.json" file within your database folder.  "OneToOne" and "ManyToMany" are untested.  Use at your own peril.
+FULL RELATIONSHIPS HANDING!!! Relationship handling for "OneToOne", "ManyToMany", "OneToMany" and "ManyToOne" is now available.  
 
 When you startup your server, lycan will create a database folder with the following contents:
 **curator.json**
@@ -21,7 +21,7 @@ When you startup your server, lycan will create a database folder with the follo
 
 **PARAMETER VALIDATIONS**: Within the parameter object, the user may store variables that serve as validators for the specific parameter when it is being passed.  Accepted validation variables are as follows:
 
-**type**: Verifies if the parameter passed matches the type set within the variable. If this variable is set and a value is passed that does not match typeof() the entire object will be rejected with an error.  SPECIAL CASE: if the type is set to "email" lycan will verify if it is a valid email string.  **Relationships:** type: "ManyToMany" and type: "OneToMany" will create a relationship. (See "Relationships below").
+**type**: Verifies if the parameter passed matches the type set within the variable. If this variable is set and a value is passed that does not match typeof() the entire object will be rejected with an error.  SPECIAL CASE: if the type is set to "email" lycan will verify if it is a valid email string.  **Relationships:** type: "ManyToMany", "OneToMany", "ManyToOne" or "OneToOne" will create a relationship. (See "Relationships below").
 
 **min**: REQUIRES TYPE TO BE SET TO STRING OR NUMBER - If type is set to "string" min will verify that the length of the string is not less than the min variable given or return an error.  If type is set to "number" min will verify that the value of the number is no less than the variable given or return an error.
 
@@ -91,14 +91,14 @@ Updating an existing object can be done with the Update() method.  This method r
 
 **FINDING OBJECTS**:
 
-lycan.GetById(groupName, id)
-Takes in a groupName "string" and id "number" and returns a Promise.  If there are no errors, an object will be returned, otherwise an object with errors will be returned.
+lycan.GetById(groupName, id, factor)
+Takes in a groupName "string" and id "number" and returns a Promise.  If there are no errors, an object will be returned, otherwise an object with errors will be returned.  Additionally, a factor "number" may be passed.  If a factor greater than 0 is passed, the object will return with additional relationships joined to its relationships parameters.  WARNING: Passing a high level factor can return a very large object, especially if the object contains "OneToOne" relationships.  
 
-lycan.GetByKey(groupName, parameter, value, first)
-Takes in a groupName: "string", parameter: "string", value: "any", first: boolean and returns a Promise.  If there are no errors and "first" is true, the first matching object will be returned.  If there are no errors and "first" is false or not provided, an array of all objects that match the parameter: value given will be returned. Otherwise, an object with errors will be returned.
+lycan.GetByKey(groupName, parameter, value, first, factor)
+Takes in a groupName: "string", parameter: "string", value: "any", first: boolean and returns a Promise.  If there are no errors and "first" is true, the first matching object will be returned.  If there are no errors and "first" is false or not provided, an array of all objects that match the parameter: value given will be returned. Otherwise, an object with errors will be returned.  Additionally, a factor "number" may be passed.  If a factor greater than 0 is passed, the object will return with additional relationships joined to its relationships parameters.  WARNING: Passing a high level factor can return a very large object, especially if the object contains "OneToOne" relationships.  
 
 lycan.GetGroup(groupName)
-Takes in a groupName: "string" and returns a Promise.  If there are no errors, an object containing all objects within the group will be returned, otherwise, an object with errors will be returned.
+Takes in a groupName: "string" and returns a Promise.  If there are no errors, an object containing all objects within the group will be returned, otherwise, an object with errors will be returned.  (note: GetGroup currently does not support "factor" joining)
 
 **DELETE AN OBJECT**
 
@@ -111,8 +111,9 @@ lycan.Reveal(crypted, string)
 Compares a "crypt": parameter with a string and returns a Promise.  If the string is a match, will return true otherwise, it will return false.
 
 **RELATIONSHIPS**
-Currently Unfinished
-The model validation "type" accepts "ManyToMany" and "OneToMany" and requires an additional "group" validation within the same parameter in order to function correctly.  (Future support will include "OneToOne" and "ManyToMany")
+The model validation "type" accepts "ManyToMany", "OneToMany", "ManyToOne" and "OneToOne" and requires an additional "group" validation within the same parameter in order to function correctly.
+
+Deleting relationships is not yet complete.  In order ot remove a relationships, a "false" boolean must be passed in the place of an existing relationship.
 
 curator.json
 ```
@@ -125,6 +126,8 @@ curator.json
 ```
 
 **SESSION STORAGE**
+
+WARNING: Session storage is still in construction and does not delete expired sessions.
 
 lycan.session.write(id, body)
 Takes in a session id (express: req.session.id) and an object and returns a promise.  If the session id exists, values within the existing object will be overwritten and the object will be returned.  Any existing values that existed within the object that were not overwritten will be returned as well.
