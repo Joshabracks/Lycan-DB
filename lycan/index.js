@@ -69,7 +69,7 @@ module.exports = {
             model.tally = 0;
         }
         object.group = groupName;
-        object.id = curator[groupName].tally;
+        object.id = groupName + "_" + curator[groupName].tally;
         await runValidations(model, object, this.locale)
             .then(obj => {
                 object = obj;
@@ -135,29 +135,40 @@ module.exports = {
             }
         })
     },
-    Update: async (object) => {
+    Update: async (object, skipValidations) => {
         let errors = {};
         const dir = this.locale;
         const model = curator[object.group];
         let actual = await updateHelper(object.group, object.id)
-            .then(data => { 
+            .then(data => {
                 return data;
             })
-            .catch(err => { console.log(err) })
+            .catch(console.log)
         for (key in actual) {
             if (!object[key]) {
                 object[key] = actual[key];
             }
         }
-        await runValidations(model, object, this.locale)
-            .then(obj => {
-                object = obj;
-            })
-            .catch(err => {
-                for (error in err) {
-                    errors[error] = err[error];
+        if (skipValidations != true) {
+            await runValidations(model, object, this.locale)
+                .then(obj => {
+                    object = obj;
+                })
+                .catch(err => {
+                    for (error in err) {
+                        errors[error] = err[error];
+                    }
+                });
+        } else {
+            for (parameter in model) {
+                if (model[parameter].type == 'ManyToMany' || model[parameter].type == 'OneToMany' || model[parameter].type == 'ManyToOne' || model[parameter].type == 'OneToOne') {
+                    await hestia.Validate(object, parameter, dir, model[parameter].type)
+                        .then(data => { })
+                        .catch(console.log)
+                    delete object[parameter];
                 }
-            });
+            }
+        }
         return new Promise(function (resolve, reject) {
             if (Object.keys(errors).length > 0) {
                 return reject(errors);
@@ -165,16 +176,20 @@ module.exports = {
             let group;
             if (fs.existsSync(dir + "/library/" + object.group + '.json')) {
                 group = JSON.parse(fs.readFileSync(dir + "/library/" + object.group + '.json'));
-                object.id = parseInt(object.id);
                 if (group[object.id]) {
+                    tempObj = group[object.id];
+                    for (key in tempObj) {
+                        if (object[key] == undefined) {
+                            object[key] == tempObj[key];
+                        }
+                    }
                     group[object.id] = object;
                     fs.writeFileSync(dir + '/library/' + object.group + ".json", JSON.stringify(group, null, 4), 'utf8', function (err) {
                         if (err) {
                             return reject(err);
-                        } else {
-                            return resolve('success');
                         }
                     });
+                    return resolve(object);
                 } else {
                     return reject(['Object does not exist within specified group']);
                 }
@@ -339,11 +354,21 @@ function runValidations(model, object, dir) {
                     else if (model[parameter].type != typeof (object[parameter])) {
                         if (model[parameter].type == 'ManyToMany' || model[parameter].type == 'OneToMany' || model[parameter].type == 'ManyToOne' || model[parameter].type == 'OneToOne') {
                             await hestia.Validate(object, parameter, dir, model[parameter].type)
-                                .then(data => {})
+                                .then(data => { })
                                 .catch(console.log)
                             relate = true;
                             if (model[parameter].group != object[parameter].group) {
-                                errors[parameter + 'Type'] = 'Invalid relationship error';
+                                let thisErr = true;
+                                if (typeof (object[parameter]) == 'object') {
+                                    for (item in object[parameter]) {
+                                        if (model[parameter].group != object[parameter][item].group) {
+                                            thisErr = false;
+                                        }
+                                    }
+                                }
+                                if (thisErr == false) {
+                                    errors[parameter + 'Type'] = 'Invalid relationship error';
+                                }
                             }
                         }
                         else if (model[parameter].typeError) {
@@ -685,13 +710,7 @@ const jana = {
     })
 }
 const hestia = {
-    MakeOneToOne: async function (rel, dir) {
-        let relationships;
-        if (fs.existsSync(dir + "/relationships.json")) {
-            relationships = JSON.parse(fs.readFileSync(location + "/relationships.json"));
-        } else {
-            relationships = {};
-        }
+    MakeOneToOne: async function (rel, dir, relationships) {
         return new Promise(function (resolve, reject) {
             if (!relationships[rel.name]) {
                 relationships[rel.name] = {
@@ -702,7 +721,7 @@ const hestia = {
             }
             relationships[rel.name][rel.obj1.id] = rel.obj2.id;
             relationships[rel.name][rel.obj2.id] = rel.obj1.id;
-            fs.writeFile(location + '/relationships.json', JSON.stringify(relationships, null, 4), 'utf8', function (err) {
+            fs.writeFile(dir + '/relationships.json', JSON.stringify(relationships, null, 4), 'utf8', function (err) {
                 if (err) {
                     return reject(err);
                 } else {
@@ -711,15 +730,9 @@ const hestia = {
             })
         })
     },
-    MakeManyToOne: async function (rel, dir) {
-        let relationships;
-        if (fs.existsSync(dir + "/relationships.json")) {
-            relationships = JSON.parse(fs.readFileSync(dir + "/relationships.json"));
-        } else {
-            relationships = {};
-        }
+    MakeManyToOne: async function (rel, dir, relationships) {
         return new Promise(function (resolve, reject) {
-            if (!relationships[rel.name]) {
+            if (relationships[rel.name] == undefined) {
                 relationships[rel.name] = {
                     type: 'ManyToOne',
                     obj1: rel.obj1.group,
@@ -736,13 +749,7 @@ const hestia = {
             })
         })
     },
-    MakeOneToMany: async function (rel, dir) {
-        let relationships;
-        if (fs.existsSync(dir + "/relationships.json")) {
-            relationships = JSON.parse(fs.readFileSync(dir + "/relationships.json"));
-        } else {
-            relationships = {};
-        }
+    MakeOneToMany: async function (rel, dir, relationships) {
         return new Promise(function (resolve, reject) {
             if (!relationships[rel.name]) {
                 relationships[rel.name] = {
@@ -764,13 +771,7 @@ const hestia = {
             })
         })
     },
-    MakeManyToMany: async function (rel, dir) {
-        let relationships;
-        if (fs.existsSync(dir + "/relationships.json")) {
-            relationships = JSON.parse(fs.readFileSync(location + "/relationships.json"));
-        } else {
-            relationships = {};
-        }
+    MakeManyToMany: async function (rel, dir, relationships) {
         return new Promise(function (resolve, reject) {
             if (!relationships[rel.name]) {
                 relationships[rel.name] = {
@@ -779,15 +780,15 @@ const hestia = {
                     obj2: rel.obj2.group
                 }
             }
-            if (!relationships[rel.name][rel.obj1.id]) {
+            if (relationships[rel.name][rel.obj1.id] == undefined) {
                 relationships[rel.name][rel.obj1.id] = {};
             }
-            if (!relationships[rel.name][rel.obj2.id]) {
+            if (relationships[rel.name][rel.obj2.id] == undefined) {
                 relationships[rel.name][rel.obj2.id] = {};
             }
             relationships[rel.name][rel.obj1.id][rel.obj2.id] = rel.obj2.id;
             relationships[rel.name][rel.obj2.id][rel.obj1.id] = rel.obj1.id;
-            fs.writeFile(location + '/relationships.json', JSON.stringify(relationships, null, 4), 'utf8', function (err) {
+            fs.writeFile(dir + '/relationships.json', JSON.stringify(relationships, null, 4), 'utf8', function (err) {
                 if (err) {
                     return reject(err);
                 } else {
@@ -886,7 +887,7 @@ const hestia = {
                 if (factor > 0) {
                     tempObj = await this.Joining(tempObj, factor - 1, dir)
                         .then(data => { return data })
-                        .catch(err => console.log(err));
+                        .catch(console.log);
                 }
                 if (!obj[key]) {
                     obj[key] = {};
@@ -899,7 +900,7 @@ const hestia = {
                 if (factor > 0) {
                     tempObj = await this.Joining(tempObj, factor - 1, dir)
                         .then(data => { return data })
-                        .catch(err => console.log(err));
+                        .catch(console.log);
                 }
                 if (!obj[key]) {
                     obj[key] = {};
@@ -923,13 +924,19 @@ const hestia = {
         return obj;
     },
     Validate: async function (object, parameter, dir, type) {
+        let relationships;
+        if (fs.existsSync(dir + "/relationships.json")) {
+            relationships = JSON.parse(fs.readFileSync(dir + "/relationships.json"));
+        } else {
+            relationships = {};
+        }
         if (type == "OneToOne") {
             let rel = {
                 name: parameter,
                 obj1: object,
                 obj2: object[parameter]
             }
-            this.MakeOneToOne(rel, dir)
+            this.MakeOneToOne(rel, dir, relationships)
                 .then(data => { return data })
                 .catch(err => { return err });
         }
@@ -943,7 +950,7 @@ const hestia = {
                     obj2: object[parameter][key],
                     secret: "OneToMany"
                 }
-                await this.MakeOneToMany(rel, dir)
+                await this.MakeOneToMany(rel, dir, relationships)
                     .then(data => { result.push(data) })
                     .catch(err => { errors.push(err) });
                 let rel2 = {
@@ -951,7 +958,7 @@ const hestia = {
                     obj2: object[parameter],
                     obj2: object
                 }
-                await this.MakeManyToOne(rel2, dir)
+                await this.MakeManyToOne(rel2, dir, relationships)
                     .then(data => { result.push(data) })
                     .catch(err => { errors.push(err) })
                 return { data: result, errors: errors }
@@ -970,10 +977,10 @@ const hestia = {
                 obj1: object,
                 obj2: object[parameter]
             }
-            await this.MakeOneToMany(rel, dir)
+            await this.MakeOneToMany(rel, dir, relationships)
                 .then(data => {
                     result.push(data)
-                    this.MakeManyToOne(rel2, dir)
+                    this.MakeManyToOne(rel2, dir, relationships)
                         .then(data => { result.push(data) })
                         .catch(err => { errors.push(err) })
                 })
@@ -981,14 +988,18 @@ const hestia = {
             return { data: result, errors: errors }
         }
         if (type == "ManyToMany") {
-            let rel = {
-                name: parameter,
-                obj1: object,
-                obj2: object[parameter]
+            for (key in object[parameter]) {
+                let rel = {
+                    name: parameter,
+                    obj1: object,
+                    obj2: object[parameter][key]
+                }
+                await this.MakeManyToMany(rel, dir, relationships)
+                    .then(data => {
+                        return data
+                    })
+                    .catch(err => { return err });
             }
-            this.MakeManyToMany(rel, dir)
-                .then(data => { return data })
-                .catch(err => { return err });
         }
     }
 }
