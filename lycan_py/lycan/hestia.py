@@ -98,3 +98,57 @@ def Joining(obj, factor, locale):
                     obj[key] = {}
                 obj[key][tempObj['id']] = tempObj
     return obj
+
+def Validate(obj, parameter, locale, _type):
+    relationships = {}
+    if os.path.isfile(locale + '/relationships.json'):
+        relationships = json.load(locale + '/relationships.json')
+    else:
+        relationships = {}
+    if _type == 'OneToOne':
+        rel = {
+            'name': parameter,
+            'obj1': obj,
+            'obj2': obj[parameter]
+        }
+        return MakeOneToOne(rel, locale, relationships)
+    if _type == 'OneToMany':
+        result = []
+        for key in object[parameter]:
+            rel = {
+                'name': parameter + '_of',
+                'obj1': obj,
+                'obj2': obj[parameter][key],
+                'secret': 'OneToMany'
+            }
+            result.append(MakeOneToMany(rel, locale, relationships))
+            rel2 = {
+                'name': parameter,
+                'obj1': obj[parameter],
+                'obj2': obj
+            }
+            result.append(MakeManyToOne(rel2, locale, relationships))
+        return result
+    if _type == 'ManyToOne':
+        result = []
+        rel = {
+            'name': parameter + '_of',
+            'obj1': obj[parameter],
+            'obj2': obj
+        }
+        rel2 = {
+            'name': parameter,
+            'obj1': obj,
+            'obj2': obj[parameter]
+        }
+        result.append(MakeOneToMany(rel, locale, relationships))
+        result.append(MakeManyToOne(rel2, locale, relationships))
+        return result
+    if _type == 'ManyToMany':
+        for key in obj[parameter]:
+            rel = {
+                'name': parameter,
+                'obj1': obj,
+                'obj2': obj[parameter][key]
+            }
+            return MakeManyToMany(rel, locale, relationships)

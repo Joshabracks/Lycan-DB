@@ -955,14 +955,14 @@ const hestia = {
                     .catch(err => { errors.push(err) });
                 let rel2 = {
                     name: parameter,
-                    obj2: object[parameter],
+                    obj1: object[parameter],
                     obj2: object
                 }
                 await this.MakeManyToOne(rel2, dir, relationships)
                     .then(data => { result.push(data) })
                     .catch(err => { errors.push(err) })
-                return { data: result, errors: errors }
             }
+            return { data: result, errors: errors }
         }
         if (type == "ManyToOne") {
             let result = [];
