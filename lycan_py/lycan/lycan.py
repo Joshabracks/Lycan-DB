@@ -63,7 +63,7 @@ def Add(groupName, obj):
     else:
         obj['group'] = groupName
         curator[groupName]['tally'] += 1
-        group[obj]['id'] = obj
+        group[obj]['_id'] = obj
         with open(locale + '/curator.json', 'w') as outfile:
             json.dump(curator, outfile, indent=4, separators=(',', ': '), sort_keys=True)
         with open(locale + '/library/' + groupName + '.json', 'w') as outfile:
@@ -73,7 +73,7 @@ def Add(groupName, obj):
 def runValidations(model, obj):
     errors = {}
     for key in obj:
-        if not model[key] and key != 'group' and key != 'id':
+        if not model[key] and key != 'group' and key != '_id':
             errors['parameter'] = key + 'is not a valid parameter'
         for parameter in model:
             relate = False
@@ -140,7 +140,7 @@ def runValidations(model, obj):
                     if os.path.isfile(locale + '/library/' + obj['group'] + '.json'):
                         group = json.load(locale + '/library/' + obj['group'] + '.json')
                     for key in group:
-                        if group[key][parameter] == obj[parameter] and group[key]['id'] == obj['id']:
+                        if group[key][parameter] == obj[parameter] and group[key]['_id'] == obj['_id']:
                             if model[parameter]['uniqueError']:
                                 errors[parameter + 'Unique'] = model[parameter]['uniqueError']
                             else:
@@ -157,5 +157,11 @@ def runValidations(model, obj):
         else:
             return obj
 
-def updateHelper(group, id):
-    return GetById(group, id)
+def updateHelper(group, _id):
+    return GetById(group, _id)
+
+def GetById(group, _id, factor):
+    if os.path.isfile(locale + "/library/" + group + ".json"):
+        group = json.load(locale + "/library/" + group + ".json")
+        grue = group[_id]
+        if group[_id]:
