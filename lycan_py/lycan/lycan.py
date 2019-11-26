@@ -35,6 +35,7 @@ def local(location='../db', models=False, options=False):
 
 def Add(groupName, obj):
     global curator
+    global locale
     errors = {}
     group = {}
     if os.path.isfile(locale + '/library/' + groupName + '.json'):
@@ -71,6 +72,7 @@ def Add(groupName, obj):
         return obj
 
 def runValidations(model, obj):
+    global locale
     errors = {}
     for key in obj:
         if not model[key] and key != 'group' and key != '_id':
@@ -165,3 +167,92 @@ def GetById(group, _id, factor):
         group = json.load(locale + "/library/" + group + ".json")
         grue = group[_id]
         if group[_id]:
+            return hestia.Joining(grue, factor, locale)
+
+def Reveal(crypted, string):
+    crypto = False
+    if crypt:
+        crypto = crypt
+    if crypto:
+        return crypto.reveal(crypted, string)
+    dataA = jana.revealB(crypted, string)
+    if dataA == crypted:
+        return True
+    dataB = jana.revealF(crypted, string)
+    if dataB == crypted:
+        return True
+    return False
+
+def GetByKey(groupName, parameter, value, first, factor):
+    array = []
+    errors = {}
+    global curator
+    global locale
+    model = curator[groupName]
+    if model[parameter]:
+        group = json.load(locale + '/library/' + groupName + '.json')
+        for obj in group:
+            current = group[obj]
+            if current[parameter] == value:
+                array.append(current)
+                if first:
+                    return hestia.Joining(current, factor, locale)
+        for i in range(len(array)):
+            array[i] = hestia.Joining(array[i], factor, locale)
+        return array
+
+def Update(obj, skipValidations):
+    errors = {}
+    global locale
+    global curator
+    model = curator[obj['group']]
+    actual = updateHelper(obj['group'], obj['id'])
+    for key in actual:
+        if not object[key]:
+            object[key] = actual[key]
+    if not skipValidations:
+        obj = runValidations(model, obj)
+    else:
+        for parameter in model:
+            if model[parameter]['type'] == 'ManyToMany' or model[parameter]['type'] == 'OneToMany' or model[parameter]['type'] == 'ManyToOne' or model[parameter]['type'] == 'OneToOne':
+                hestia.Validate(obj, parameter, locale, model[parameter]['type'])
+                del obj[parameter]
+    if obj['errors']:
+        return obj
+    group = {}
+    if os.path.isfile(locale + '/library/' + obj['group'] + '.json'):
+        group = json.load(locale + '/library/' + obj['group'] + '.json')
+        tempObj = group[obj['id']]
+        for key in tempObj:
+            if not obj[key]:
+                obj[key] = tempObj[key]
+        group[obj['id']] = obj
+        with open(locale + '/library/' + obj['group'] + '.json', 'w') as outfile:
+            json.dump(group, outfile, indent=4, separators=(',', ': '), sort_keys=True)
+        return obj
+    else:
+        errors['error'] = 'Object does not exist within specified group'
+        return errors
+
+def GetGroup(group):
+    global locale
+    global curator
+    if os.path.isfile(locale + '/library/' + group + '.json'):
+        return json.load(locale + '/library' + group + '.json')
+    else:
+        return { 'error': 'Group ' + group + 'does not exist', 'fail': True }
+
+def Delete(obj):
+    global locale
+    group = {}
+    if os.path.isfile(locale + '/library/' + obj['group'] + '.json'):
+        group = json.load(locale + '/library/' + obj['group'] + '.json')
+        if group[obj['id']]:
+            del group[obj['id']]
+            with open(locale + '/library/' + obj['group'] + '.json', 'w') as outfile:
+                json.dump(group, outfile, indent=4, separators=(',', ': '), sort_keys=True)
+            return 'success'
+        else:
+            return { 'error': 'Object does not exist within specified group' }
+    else:
+        return { 'error': 'Cannot delete: specified group does not exist' }

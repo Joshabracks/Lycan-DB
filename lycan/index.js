@@ -180,7 +180,7 @@ module.exports = {
                     tempObj = group[object.id];
                     for (key in tempObj) {
                         if (object[key] == undefined) {
-                            object[key] == tempObj[key];
+                            object[key] = tempObj[key];
                         }
                     }
                     group[object.id] = object;
