@@ -5,6 +5,7 @@ Lycan is an object oriented JSON database.
 **Python version is in development and requires testing**
 
 **NODE.js Version is tested and functional**
+**THE FOLLOWING DOCUMENTATION IS FOR NODE.JS.  PYTHON DOCUMENTATION HAS NOT BEEN ADDED, HOWEVER ALL FUNCTIONS TAKE THE SAME ARGUMENTS.** 
 
 ```
 //Inside your controller file
