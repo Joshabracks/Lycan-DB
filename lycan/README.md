@@ -9,7 +9,7 @@ lycan.local('../db');
 ```
 
 **LATEST PATCH**
-FULL RELATIONSHIPS HANDING!!! Relationship handling for "OneToOne", "ManyToMany", "OneToMany" and "ManyToOne" is now available.  
+Formatting fixes for relationship functions.
 
 When you startup your server, lycan will create a database folder with the following contents:
 **curator.json**
